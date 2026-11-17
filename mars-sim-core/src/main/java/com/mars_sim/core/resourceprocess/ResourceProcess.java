@@ -185,6 +185,10 @@ public class ResourceProcess implements ScheduledEventHandler {
 	 * @param time in millisols
 	 */
 	private void processOutputResources(double time) {
+		// The remaining total capacity of the host is costly to work out because it adds up the mass
+		// of all the equipment held. Work it out once and then take off whatever gets stored below.
+		double remainingTotalCap = Double.NaN;
+
 		// Output resources to inventory.
 		for (Integer resource : processSpec.getOutputResources()) {
 			
@@ -193,7 +197,12 @@ public class ResourceProcess implements ScheduledEventHandler {
 				double currentRate = getCurrentOutputRate(resource) * time;
 				double resourceRate = currentRate * currentProductionLevel;
 				double required = resourceRate;
-				double remainingCap = host.getRemainingCombinedCapacity(resource);
+				double specificCap = host.getRemainingSpecificCapacity(resource);
+				if (Double.isNaN(remainingTotalCap)) {
+					// Combined capacity is the total capacity left plus the specific capacity left
+					remainingTotalCap = host.getRemainingCombinedCapacity(resource) - specificCap;
+				}
+				double remainingCap = remainingTotalCap + specificCap;
 							
 				// Store the right amount
 				if (remainingCap > SMALL_AMOUNT) {
@@ -208,7 +217,9 @@ public class ResourceProcess implements ScheduledEventHandler {
 						break;
 					}
 					else {
-						host.storeAmountResource(resource, required);						
+						double excess = host.storeAmountResource(resource, required);
+						// The stored amount adds to the stored mass so less total capacity is left
+						remainingTotalCap -= (required - excess);
 					}
 					
 				}
